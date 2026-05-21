@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-骨质疏松机会性筛查系统
-基于SVM模型的腰椎CT值预测 - 优化版本
-使用6个核心CT特征，准确率74.29%，Macro F1 0.7578
+Osteoporosis Screening System
+Based on SVM Machine Learning with Lumbar Spine CT Values
+3-Class Classification: Normal / Osteopenia / Osteoporosis
 """
 
 import streamlit as st
@@ -16,96 +16,114 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-# ====================== 页面配置 ======================
+# ====================== Page Configuration ======================
 st.set_page_config(
-    page_title="骨质疏松机会性筛查系统",
+    page_title="Osteoporosis Screening System",
     page_icon="🦴",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ====================== 标题 ======================
-st.title("🦴 骨质疏松机会性筛查系统")
+# ====================== Title ======================
+st.title("🦴 Osteoporosis Screening System")
 st.markdown("""
-基于**腰椎CT值**和**SVM机器学习模型**的骨质疏松风险预测系统。
-使用**6个核心CT特征**进行预测，模型验证集准确率 **74.29%**，Macro F1 **0.7578**。
+Based on **lumbar spine CT values** and **SVM machine learning model** for osteoporosis risk prediction.
+Using **6 core CT features** for 3-class classification (Normal / Osteopenia / Osteoporosis).
 """)
 
-# ====================== 6个核心CT特征（基于优化后的SVM模型）======================
+# ====================== 6 Core CT Features (Based on Optimized SVM Model) ======================
 SELECTED_FEATURES = [
-    'L4shizhuang',   # 第4腰椎矢状面CT值 - 最重要的预测指标
-    'L4hengduan',    # 第4腰椎横断面CT值
-    'L1hengduan',    # 第1腰椎横断面CT值
-    'L3guanzhuang',  # 第3腰椎冠状面CT值
-    'L3mean',        # 第3腰椎平均CT值
-    'L4guanzhuang'   # 第4腰椎冠状面CT值
+    'L4_Sagittal',    # L4 Sagittal CT value - most important predictor
+    'L4_Axial',       # L4 Axial CT value
+    'L1_Axial',       # L1 Axial CT value
+    'L3_Coronal',     # L3 Coronal CT value
+    'L3_Mean',        # L3 Mean CT value
+    'L4_Coronal'      # L4 Coronal CT value
 ]
 
-# 特征中文名称
-FEATURE_NAMES_CN = {
-    'L4shizhuang': 'L4矢状面',
-    'L4hengduan': 'L4横断面',
-    'L1hengduan': 'L1横断面',
-    'L3guanzhuang': 'L3冠状面',
-    'L3mean': 'L3均值',
-    'L4guanzhuang': 'L4冠状面'
+# Feature display names
+FEATURE_NAMES_DISPLAY = {
+    'L4_Sagittal': 'L4 Sagittal',
+    'L4_Axial': 'L4 Axial',
+    'L1_Axial': 'L1 Axial',
+    'L3_Coronal': 'L3 Coronal',
+    'L3_Mean': 'L3 Mean',
+    'L4_Coronal': 'L4 Coronal'
 }
 
-# 特征描述
+# Feature descriptions
 FEATURE_DESCRIPTIONS = {
-    'L4shizhuang': '第4腰椎矢状面CT值 - L4椎体承重最大，矢状面最敏感',
-    'L4hengduan': '第4腰椎横断面CT值 - 反映椎体中心区域骨密度',
-    'L1hengduan': '第1腰椎横断面CT值 - 上腰椎代表',
-    'L3guanzhuang': '第3腰椎冠状面CT值 - 反映椎体整体骨密度',
-    'L3mean': '第3腰椎平均CT值 - 综合反映L3骨密度',
-    'L4guanzhuang': '第4腰椎冠状面CT值 - 冠状面视角的骨密度评估'
+    'L4_Sagittal': 'L4 sagittal CT value - most important predictor, L4 bears maximum load',
+    'L4_Axial': 'L4 axial CT value - reflects central vertebral bone density',
+    'L1_Axial': 'L1 axial CT value - represents upper lumbar spine',
+    'L3_Coronal': 'L3 coronal CT value - reflects overall vertebral bone density',
+    'L3_Mean': 'L3 mean CT value - comprehensive indicator of L3 bone density',
+    'L4_Coronal': 'L4 coronal CT value - coronal plane assessment'
 }
 
-# CT值参考范围 (HU) - 基于临床标准
+# CT reference ranges (HU)
 REFERENCE_RANGES = {
-    'L4shizhuang': (90, 190),
-    'L4hengduan': (90, 190),
-    'L1hengduan': (90, 200),
-    'L3guanzhuang': (90, 190),
-    'L3mean': (100, 200),
-    'L4guanzhuang': (90, 190)
+    'L4_Sagittal': (90, 190),
+    'L4_Axial': (90, 190),
+    'L1_Axial': (90, 200),
+    'L3_Coronal': (90, 190),
+    'L3_Mean': (100, 200),
+    'L4_Coronal': (90, 190)
 }
 
-# 特征默认值（基于训练数据中位数）
+# Default values (based on training data median)
 DEFAULT_VALUES = {
-    'L4shizhuang': 136,
-    'L4hengduan': 138,
-    'L1hengduan': 140,
-    'L3guanzhuang': 141,
-    'L3mean': 150,
-    'L4guanzhuang': 135
+    'L4_Sagittal': 136,
+    'L4_Axial': 138,
+    'L1_Axial': 140,
+    'L3_Coronal': 141,
+    'L3_Mean': 150,
+    'L4_Coronal': 135
 }
 
-# 完整CT特征列表（16个）
+# Full 16 CT features list
 CT_FEATURES_FULL = [
-    'L1hengduan', 'L1shizhuang', 'L1guanzhuang', 'L1mean',
-    'L2hengduan', 'L2shizhuang', 'L2guanzhuang', 'L2mean',
-    'L3hengduan', 'L3shizhuang', 'L3guanzhuang', 'L3mean',
-    'L4hengduan', 'L4shizhuang', 'L4guanzhuang', 'L4mean'
+    'L1_Axial', 'L1_Sagittal', 'L1_Coronal', 'L1_Mean',
+    'L2_Axial', 'L2_Sagittal', 'L2_Coronal', 'L2_Mean',
+    'L3_Axial', 'L3_Sagittal', 'L3_Coronal', 'L3_Mean',
+    'L4_Axial', 'L4_Sagittal', 'L4_Coronal', 'L4_Mean'
 ]
 
-# 非核心特征的默认值（基于训练数据中位数）
+# Default values for non-core features
 DEFAULT_VALUES_FULL = {
-    'L1shizhuang': 138, 'L1guanzhuang': 135, 'L1mean': 138,
-    'L2hengduan': 142, 'L2shizhuang': 140, 'L2guanzhuang': 140, 'L2mean': 145,
-    'L3hengduan': 142, 'L3shizhuang': 143,
-    'L4mean': 140
+    'L1_Sagittal': 138, 'L1_Coronal': 135, 'L1_Mean': 138,
+    'L2_Axial': 142, 'L2_Sagittal': 140, 'L2_Coronal': 140, 'L2_Mean': 145,
+    'L3_Axial': 142, 'L3_Sagittal': 143, 'L4_Mean': 140
+}
+
+# Class mapping (3-class)
+CLASS_MAPPING = {
+    0: 'Normal',
+    1: 'Osteopenia', 
+    2: 'Osteoporosis'
+}
+
+CLASS_DESCRIPTIONS = {
+    'Normal': 'Normal bone density - routine follow-up recommended',
+    'Osteopenia': 'Reduced bone density - lifestyle intervention needed',
+    'Osteoporosis': 'Osteoporosis - DXA confirmation and treatment recommended'
+}
+
+CLASS_COLORS = {
+    'Normal': '#10B981',      # Green
+    'Osteopenia': '#F59E0B',  # Orange
+    'Osteoporosis': '#EF4444' # Red
 }
 
 
-# ====================== 加载模型 ======================
+# ====================== Load Models ======================
 @st.cache_resource
 def load_models():
-    """加载SVM模型和预处理对象（优化版本）"""
+    """Load SVM model and preprocessors (optimized version for 3-class)"""
     model_dir = os.path.join(os.path.dirname(__file__), 'models')
     
     try:
-        # 尝试加载优化后的模型
+        # Load model and scaler
         model_path = os.path.join(model_dir, 'best_model_optimized.pkl')
         if not os.path.exists(model_path):
             model_path = os.path.join(model_dir, 'best_model.pkl')
@@ -117,47 +135,43 @@ def load_models():
         model = joblib.load(model_path)
         scaler = joblib.load(scaler_path)
         
-        st.sidebar.success("✅ SVM模型加载成功")
-        st.sidebar.info(f"模型特征数: {len(SELECTED_FEATURES)}个")
+        st.sidebar.success("✅ SVM model loaded successfully")
+        st.sidebar.info(f"Number of features: {len(SELECTED_FEATURES)}")
+        st.sidebar.info(f"Classification: 3-class (Normal / Osteopenia / Osteoporosis)")
         return model, scaler
     except Exception as e:
-        st.sidebar.error(f"❌ 模型加载失败: {e}")
-        st.sidebar.info("请确保models文件夹包含: best_model_optimized.pkl, scaler_optimized.pkl")
+        st.sidebar.error(f"❌ Model loading failed: {e}")
+        st.sidebar.info("Please ensure model files exist in 'models' folder")
         return None, None
 
 
-# ====================== 预测函数 ======================
+# ====================== Prediction Function ======================
 def predict_osteoporosis(model, scaler, input_values):
     """
-    预测骨质疏松风险
-    
-    Args:
-        model: SVM模型
-        scaler: 标准化器
-        input_values: 6个核心特征的输入值字典
+    Predict osteoporosis risk (3-class)
     
     Returns:
-        probability: 骨质疏松概率
-        prediction: 预测类别 (1: 骨质疏松, 0: 非骨质疏松)
+        class_idx: 0=Normal, 1=Osteopenia, 2=Osteoporosis
+        probabilities: probability array for each class
     """
-    # 构建6个核心特征的数组
+    # Build input array with 6 core features
     input_array = np.array([[input_values[feat] for feat in SELECTED_FEATURES]])
     
-    # 标准化
+    # Standardize
     input_scaled = scaler.transform(input_array)
     
-    # 预测
-    probability = model.predict_proba(input_scaled)[0, 1]
-    prediction = 1 if probability > 0.5 else 0
+    # Predict probabilities (3-class)
+    probabilities = model.predict_proba(input_scaled)[0]
+    class_idx = np.argmax(probabilities)
     
-    return probability, prediction
+    return class_idx, probabilities
 
 
-# ====================== 计算特征贡献 ======================
+# ====================== Calculate Feature Contributions ======================
 def calculate_feature_contributions(input_values):
     """
-    基于CT值偏离正常范围计算特征贡献
-    CT值越低，风险越高（负相关）
+    Calculate feature contributions based on deviation from normal reference range
+    Lower CT values indicate higher risk (negative correlation)
     """
     contributions = []
     
@@ -166,13 +180,11 @@ def calculate_feature_contributions(input_values):
         ref_low, ref_high = REFERENCE_RANGES.get(feat, (100, 200))
         ref_mean = (ref_low + ref_high) / 2
         
-        # CT值越低风险越高（负相关）
+        # Lower CT = higher risk
         if value < ref_mean:
-            # 低于正常值，增加风险
             deviation = (ref_mean - value) / ref_mean
             contribution = min(0.15, deviation * 0.08)
         else:
-            # 高于正常值，降低风险
             deviation = (value - ref_mean) / ref_mean
             contribution = max(-0.08, -deviation * 0.05)
         
@@ -181,150 +193,193 @@ def calculate_feature_contributions(input_values):
     return contributions
 
 
-# ====================== 主函数 ======================
+# ====================== Main Function ======================
 def main():
-    # 加载模型
+    # Load models
     model, scaler = load_models()
     
     if model is None:
-        st.warning("⚠️ 请先上传模型文件到models文件夹")
-        st.info("需要的文件: best_model_optimized.pkl, scaler_optimized.pkl")
+        st.warning("⚠️ Please upload model files to the 'models' folder")
+        st.info("Required files: best_model_optimized.pkl, scaler_optimized.pkl")
         return
     
-    # ====================== 侧边栏 ======================
-    st.sidebar.header("📋 导航")
+    # ====================== Sidebar ======================
+    st.sidebar.header("📋 Navigation")
     page = st.sidebar.radio(
-        "选择页面",
-        ["🔍 骨质疏松预测", "📊 特征分析", "ℹ️ 使用说明"]
+        "Select Page",
+        ["🔍 Risk Prediction", "📊 Feature Analysis", "ℹ️ User Guide"]
     )
     
     st.sidebar.markdown("---")
     st.sidebar.info("""
-    **模型信息**
-    - 算法: SVM (RBF核)
-    - 特征数: 6个
-    - 准确率: 74.29%
+    **Model Information**
+    - Algorithm: SVM (RBF kernel)
+    - Task: 3-class classification
+    - Features: 6
+    - Accuracy: 74.29%
     - Macro F1: 0.7578
-    - 训练集: 277例
-    - 验证集: 70例
+    - Training set: 277
+    - Validation set: 70
     """)
     
-    # 显示特征列表
-    with st.sidebar.expander("📊 6个核心特征"):
+    # Display feature list
+    with st.sidebar.expander("📊 6 Core Features"):
         for feat in SELECTED_FEATURES:
-            st.write(f"- {FEATURE_NAMES_CN[feat]} ({feat})")
+            st.write(f"- {FEATURE_NAMES_DISPLAY[feat]}")
     
-    # ====================== 预测页面 ======================
-    if page == "🔍 骨质疏松预测":
-        st.header("🔍 骨质疏松风险预测")
-        st.markdown("请输入患者的6个核心腰椎CT值进行预测。")
+    # ====================== Prediction Page ======================
+    if page == "🔍 Risk Prediction":
+        st.header("🔍 Osteoporosis Risk Prediction")
+        st.markdown("Enter the 6 core lumbar CT values for prediction.")
         
-        # 提示信息
-        st.info("💡 **提示**: CT值越低，骨质疏松风险越高。正常参考范围: 90-200 HU")
+        # Info message
+        st.info("💡 **Note**: Lower CT values indicate higher osteoporosis risk. Normal range: 90-200 HU")
         
-        # 输入布局
+        # Input layout
         col1, col2 = st.columns(2)
         
         input_values = {}
         
         with col1:
-            st.subheader("📊 核心CT特征 (1/2)")
+            st.subheader("📊 Core CT Features (1/2)")
             
-            # L4shizhuang
-            input_values['L4shizhuang'] = st.number_input(
-                "**L4矢状面** (L4shizhuang)",
+            # L4 Sagittal
+            input_values['L4_Sagittal'] = st.number_input(
+                "**L4 Sagittal** (L4_Sagittal)",
                 min_value=0.0, max_value=400.0, value=136.0, step=1.0,
-                help="第4腰椎矢状面CT值 - 最重要的预测指标"
+                help=FEATURE_DESCRIPTIONS['L4_Sagittal']
             )
-            st.caption(f"参考范围: {REFERENCE_RANGES['L4shizhuang'][0]}-{REFERENCE_RANGES['L4shizhuang'][1]} HU")
+            st.caption(f"Reference range: {REFERENCE_RANGES['L4_Sagittal'][0]}-{REFERENCE_RANGES['L4_Sagittal'][1]} HU")
             
-            # L4hengduan
-            input_values['L4hengduan'] = st.number_input(
-                "**L4横断面** (L4hengduan)",
+            # L4 Axial
+            input_values['L4_Axial'] = st.number_input(
+                "**L4 Axial** (L4_Axial)",
                 min_value=0.0, max_value=400.0, value=138.0, step=1.0,
-                help="第4腰椎横断面CT值"
+                help=FEATURE_DESCRIPTIONS['L4_Axial']
             )
-            st.caption(f"参考范围: {REFERENCE_RANGES['L4hengduan'][0]}-{REFERENCE_RANGES['L4hengduan'][1]} HU")
+            st.caption(f"Reference range: {REFERENCE_RANGES['L4_Axial'][0]}-{REFERENCE_RANGES['L4_Axial'][1]} HU")
             
-            # L1hengduan
-            input_values['L1hengduan'] = st.number_input(
-                "**L1横断面** (L1hengduan)",
+            # L1 Axial
+            input_values['L1_Axial'] = st.number_input(
+                "**L1 Axial** (L1_Axial)",
                 min_value=0.0, max_value=400.0, value=140.0, step=1.0,
-                help="第1腰椎横断面CT值"
+                help=FEATURE_DESCRIPTIONS['L1_Axial']
             )
-            st.caption(f"参考范围: {REFERENCE_RANGES['L1hengduan'][0]}-{REFERENCE_RANGES['L1hengduan'][1]} HU")
+            st.caption(f"Reference range: {REFERENCE_RANGES['L1_Axial'][0]}-{REFERENCE_RANGES['L1_Axial'][1]} HU")
         
         with col2:
-            st.subheader("📊 核心CT特征 (2/2)")
+            st.subheader("📊 Core CT Features (2/2)")
             
-            # L3guanzhuang
-            input_values['L3guanzhuang'] = st.number_input(
-                "**L3冠状面** (L3guanzhuang)",
+            # L3 Coronal
+            input_values['L3_Coronal'] = st.number_input(
+                "**L3 Coronal** (L3_Coronal)",
                 min_value=0.0, max_value=400.0, value=141.0, step=1.0,
-                help="第3腰椎冠状面CT值"
+                help=FEATURE_DESCRIPTIONS['L3_Coronal']
             )
-            st.caption(f"参考范围: {REFERENCE_RANGES['L3guanzhuang'][0]}-{REFERENCE_RANGES['L3guanzhuang'][1]} HU")
+            st.caption(f"Reference range: {REFERENCE_RANGES['L3_Coronal'][0]}-{REFERENCE_RANGES['L3_Coronal'][1]} HU")
             
-            # L3mean
-            input_values['L3mean'] = st.number_input(
-                "**L3均值** (L3mean)",
+            # L3 Mean
+            input_values['L3_Mean'] = st.number_input(
+                "**L3 Mean** (L3_Mean)",
                 min_value=0.0, max_value=400.0, value=150.0, step=1.0,
-                help="第3腰椎平均CT值"
+                help=FEATURE_DESCRIPTIONS['L3_Mean']
             )
-            st.caption(f"参考范围: {REFERENCE_RANGES['L3mean'][0]}-{REFERENCE_RANGES['L3mean'][1]} HU")
+            st.caption(f"Reference range: {REFERENCE_RANGES['L3_Mean'][0]}-{REFERENCE_RANGES['L3_Mean'][1]} HU")
             
-            # L4guanzhuang
-            input_values['L4guanzhuang'] = st.number_input(
-                "**L4冠状面** (L4guanzhuang)",
+            # L4 Coronal
+            input_values['L4_Coronal'] = st.number_input(
+                "**L4 Coronal** (L4_Coronal)",
                 min_value=0.0, max_value=400.0, value=135.0, step=1.0,
-                help="第4腰椎冠状面CT值"
+                help=FEATURE_DESCRIPTIONS['L4_Coronal']
             )
-            st.caption(f"参考范围: {REFERENCE_RANGES['L4guanzhuang'][0]}-{REFERENCE_RANGES['L4guanzhuang'][1]} HU")
+            st.caption(f"Reference range: {REFERENCE_RANGES['L4_Coronal'][0]}-{REFERENCE_RANGES['L4_Coronal'][1]} HU")
         
-        # 当前输入值显示
-        with st.expander("📋 当前输入值汇总"):
+        # Current input summary
+        with st.expander("📋 Current Input Summary"):
             current_df = pd.DataFrame({
-                '特征': [FEATURE_NAMES_CN[f] for f in SELECTED_FEATURES],
-                '特征代码': SELECTED_FEATURES,
-                '输入值(HU)': [input_values[f] for f in SELECTED_FEATURES]
+                'Feature': [FEATURE_NAMES_DISPLAY[f] for f in SELECTED_FEATURES],
+                'Feature Code': SELECTED_FEATURES,
+                'Value (HU)': [input_values[f] for f in SELECTED_FEATURES]
             })
             st.dataframe(current_df, use_container_width=True, hide_index=True)
         
-        # 预测按钮
-        if st.button("🚀 开始预测", type="primary", use_container_width=True):
-            with st.spinner("正在分析中..."):
-                # 执行预测
-                probability, prediction = predict_osteoporosis(model, scaler, input_values)
+        # Prediction button
+        if st.button("🚀 Run Prediction", type="primary", use_container_width=True):
+            with st.spinner("Analyzing..."):
+                # Run prediction
+                class_idx, probabilities = predict_osteoporosis(model, scaler, input_values)
+                predicted_class = CLASS_MAPPING[class_idx]
                 
-                # 显示结果
+                # Display results
                 st.markdown("---")
-                st.subheader("📊 预测结果")
+                st.subheader("📊 Prediction Results")
                 
                 col_res1, col_res2, col_res3 = st.columns(3)
                 
                 with col_res1:
-                    if prediction == 1:
-                        st.error(f"## ⚠️ 诊断结果: **骨质疏松**")
-                    else:
-                        st.success(f"## ✅ 诊断结果: **非骨质疏松**")
+                    color = CLASS_COLORS[predicted_class]
+                    if class_idx == 2:  # Osteoporosis
+                        st.markdown(f"""
+                        <div style="background-color: #FEE2E2; padding: 20px; border-radius: 10px; text-align: center;">
+                            <h2 style="color: {color}; margin: 0;">⚠️ Osteoporosis</h2>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif class_idx == 1:  # Osteopenia
+                        st.markdown(f"""
+                        <div style="background-color: #FEF3C7; padding: 20px; border-radius: 10px; text-align: center;">
+                            <h2 style="color: {color}; margin: 0;">⚠️ Osteopenia</h2>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:  # Normal
+                        st.markdown(f"""
+                        <div style="background-color: #D1FAE5; padding: 20px; border-radius: 10px; text-align: center;">
+                            <h2 style="color: {color}; margin: 0;">✅ Normal</h2>
+                        </div>
+                        """, unsafe_allow_html=True)
                 
                 with col_res2:
-                    st.metric("骨质疏松概率", f"{probability:.2%}")
+                    st.metric("Primary Probability", f"{probabilities[class_idx]:.2%}")
                 
                 with col_res3:
-                    if probability < 0.3:
-                        st.success("### 风险等级: 🟢 低风险")
-                    elif probability < 0.7:
-                        st.warning("### 风险等级: 🟡 中风险")
+                    if class_idx == 2:
+                        st.error("### Risk Level: 🔴 High")
+                    elif class_idx == 1:
+                        st.warning("### Risk Level: 🟡 Moderate")
                     else:
-                        st.error("### 风险等级: 🔴 高风险")
+                        st.success("### Risk Level: 🟢 Low")
                 
-                # 风险仪表盘
+                # Probability distribution bar chart
+                st.subheader("Class Probability Distribution")
+                
+                prob_df = pd.DataFrame({
+                    'Class': ['Normal', 'Osteopenia', 'Osteoporosis'],
+                    'Probability': probabilities,
+                    'Color': ['#10B981', '#F59E0B', '#EF4444']
+                })
+                
+                fig_prob = px.bar(prob_df, 
+                                  x='Class', 
+                                  y='Probability',
+                                  text=prob_df['Probability'].apply(lambda x: f'{x:.2%}'),
+                                  color='Class',
+                                  color_discrete_map={
+                                      'Normal': '#10B981',
+                                      'Osteopenia': '#F59E0B', 
+                                      'Osteoporosis': '#EF4444'
+                                  },
+                                  title='Predicted Probability by Class')
+                fig_prob.update_traces(textposition='auto')
+                fig_prob.update_layout(yaxis=dict(range=[0, 1]), height=400)
+                st.plotly_chart(fig_prob, use_container_width=True)
+                
+                # Risk gauge (osteoporosis probability)
+                st.subheader("Osteoporosis Risk Gauge")
+                
                 fig_gauge = go.Figure(go.Indicator(
                     mode="gauge+number",
-                    value=probability * 100,
+                    value=probabilities[2] * 100,
                     domain={'x': [0, 1], 'y': [0, 1]},
-                    title={'text': "骨质疏松风险 (%)"},
+                    title={'text': "Osteoporosis Probability (%)"},
                     gauge={
                         'axis': {'range': [0, 100]},
                         'bar': {'color': "darkred"},
@@ -339,115 +394,123 @@ def main():
                 fig_gauge.update_layout(height=300)
                 st.plotly_chart(fig_gauge, use_container_width=True)
                 
-                # 特征贡献分析
-                st.subheader("🧠 模型决策解释")
-                st.markdown("基于各CT值与正常参考范围的偏离程度计算贡献度")
+                # Feature contribution analysis
+                st.subheader("🧠 Model Decision Explanation")
+                st.markdown("Feature contributions based on deviation from normal reference range")
                 
                 contributions = calculate_feature_contributions(input_values)
                 
                 contrib_df = pd.DataFrame({
-                    '特征': SELECTED_FEATURES,
-                    '特征中文': [FEATURE_NAMES_CN.get(f, f) for f in SELECTED_FEATURES],
-                    '输入值(HU)': [input_values[f] for f in SELECTED_FEATURES],
-                    '参考均值(HU)': [(REFERENCE_RANGES[f][0] + REFERENCE_RANGES[f][1]) / 2 for f in SELECTED_FEATURES],
-                    '贡献值': contributions,
-                    '影响方向': ['增加风险' if v > 0 else '降低风险' for v in contributions]
+                    'Feature': SELECTED_FEATURES,
+                    'Feature Name': [FEATURE_NAMES_DISPLAY.get(f, f) for f in SELECTED_FEATURES],
+                    'Input (HU)': [input_values[f] for f in SELECTED_FEATURES],
+                    'Reference Mean (HU)': [(REFERENCE_RANGES[f][0] + REFERENCE_RANGES[f][1]) / 2 for f in SELECTED_FEATURES],
+                    'Contribution': contributions,
+                    'Direction': ['Increases Risk' if v > 0 else 'Decreases Risk' for v in contributions]
                 })
-                contrib_df['绝对值'] = np.abs(contrib_df['贡献值'])
-                contrib_df = contrib_df.sort_values('绝对值', ascending=False)
+                contrib_df['Abs_Contribution'] = np.abs(contrib_df['Contribution'])
+                contrib_df = contrib_df.sort_values('Abs_Contribution', ascending=False)
                 
                 st.dataframe(
-                    contrib_df[['特征中文', '输入值(HU)', '参考均值(HU)', '贡献值', '影响方向']].style.format({
-                        '输入值(HU)': '{:.1f}',
-                        '参考均值(HU)': '{:.1f}',
-                        '贡献值': '{:.4f}'
+                    contrib_df[['Feature Name', 'Input (HU)', 'Reference Mean (HU)', 'Contribution', 'Direction']].style.format({
+                        'Input (HU)': '{:.1f}',
+                        'Reference Mean (HU)': '{:.1f}',
+                        'Contribution': '{:.4f}'
                     }),
                     use_container_width=True
                 )
                 
-                # 贡献条形图
+                # Contribution bar chart
                 fig_contrib = px.bar(contrib_df,
-                                     x='贡献值',
-                                     y='特征中文',
+                                     x='Contribution',
+                                     y='Feature Name',
                                      orientation='h',
-                                     color='影响方向',
-                                     color_discrete_map={'增加风险': '#EF553B', '降低风险': '#636EFA'},
-                                     title='各CT特征对预测的影响')
+                                     color='Direction',
+                                     color_discrete_map={'Increases Risk': '#EF553B', 'Decreases Risk': '#636EFA'},
+                                     title='Feature Impact on Prediction')
                 fig_contrib.add_vline(x=0, line_width=1, line_dash="dash", line_color="black")
                 fig_contrib.update_layout(height=400)
                 st.plotly_chart(fig_contrib, use_container_width=True)
                 
-                # 临床建议
-                st.subheader("📋 临床建议")
-                if probability > 0.7:
+                # Clinical recommendations
+                st.subheader("📋 Clinical Recommendations")
+                
+                if class_idx == 2:  # Osteoporosis
                     st.warning("""
-                    **⚠️ 高风险 (骨质疏松概率 > 70%)**:
-                    1. **建议就诊**: 尽快咨询内分泌科或骨科专家
-                    2. **DXA检查**: 建议进行双能X线骨密度检查确诊
-                    3. **药物治疗**: 根据医生建议考虑抗骨质疏松药物
-                    4. **生活方式**: 增加钙和维生素D摄入，适度负重运动
-                    5. **预防跌倒**: 评估跌倒风险，采取预防措施
+                    **⚠️ Osteoporosis Detected (High Risk)**
+                    
+                    1. **Medical Consultation**: Consult endocrinology or orthopedics specialist promptly
+                    2. **DXA Confirmation**: Dual-energy X-ray absorptiometry for definitive diagnosis
+                    3. **Pharmacological Therapy**: Consider anti-osteoporosis medications
+                    4. **Lifestyle Modifications**: Increase calcium and vitamin D intake, weight-bearing exercise
+                    5. **Fall Prevention**: Assess fall risk, implement preventive measures
+                    6. **Follow-up**: Repeat DXA in 1-2 years
                     """)
-                elif probability > 0.3:
+                elif class_idx == 1:  # Osteopenia
                     st.info("""
-                    **⚠️ 中风险 (骨质疏松概率 30%-70%)**:
-                    1. **骨密度监测**: 建议1年内复查DXA
-                    2. **生活方式调整**: 增加钙摄入(1000-1200mg/天)
-                    3. **补充维生素D**: 维持血清25(OH)D > 30 ng/mL
-                    4. **负重运动**: 每周3-5次，每次30分钟
-                    5. **戒烟限酒**: 减少骨质流失风险因素
+                    **⚠️ Osteopenia Detected (Moderate Risk)**
+                    
+                    1. **BMD Monitoring**: Repeat DXA in 1 year
+                    2. **Lifestyle Intervention**: 
+                       - Calcium intake: 1000-1200 mg/day
+                       - Vitamin D: maintain serum 25(OH)D > 30 ng/mL
+                    3. **Weight-bearing Exercise**: 3-5 times/week, 30 minutes each
+                    4. **Risk Factor Modification**: Smoking cessation, alcohol limitation
+                    5. **FRAX Assessment**: Consider 10-year fracture risk evaluation
                     """)
-                else:
+                else:  # Normal
                     st.success("""
-                    **✅ 低风险 (骨质疏松概率 < 30%)**:
-                    1. **常规随访**: 每2-3年复查骨密度
-                    2. **维持健康生活方式**: 均衡饮食，适度运动
-                    3. **充足钙摄入**: 每日800-1000mg钙剂
-                    4. **预防为主**: 保持良好生活习惯
+                    **✅ Normal Bone Density (Low Risk)**
+                    
+                    1. **Routine Follow-up**: DXA every 2-3 years
+                    2. **Maintain Healthy Lifestyle**: 
+                       - Balanced diet with adequate calcium (800-1000 mg/day)
+                       - Regular physical activity
+                    3. **Preventive Measures**: Continue current healthy habits
+                    4. **Fall Prevention**: General safety precautions
                     """)
     
-    # ====================== 特征分析页面 ======================
-    elif page == "📊 特征分析":
-        st.header("📊 特征分析")
+    # ====================== Feature Analysis Page ======================
+    elif page == "📊 Feature Analysis":
+        st.header("📊 Feature Analysis")
         
-        tab1, tab2, tab3 = st.tabs(["📈 特征重要性", "🔬 特征相关性", "ℹ️ 特征说明"])
+        tab1, tab2, tab3 = st.tabs(["📈 Feature Importance", "🔬 Anatomical Distribution", "ℹ️ Feature Details"])
         
         with tab1:
-            st.subheader("6个核心CT特征重要性排序")
+            st.subheader("6 Core CT Feature Importance Ranking")
             
-            # 特征重要性估算（基于模型训练结果）
+            # Feature importance estimation
             importance_df = pd.DataFrame({
-                '特征': SELECTED_FEATURES,
-                '特征中文': [FEATURE_NAMES_CN.get(f, f) for f in SELECTED_FEATURES],
-                '重要性评分': [0.185, 0.172, 0.158, 0.156, 0.155, 0.154]  # 基于特征选择顺序
-            }).sort_values('重要性评分', ascending=True)
+                'Feature': SELECTED_FEATURES,
+                'Feature Name': [FEATURE_NAMES_DISPLAY.get(f, f) for f in SELECTED_FEATURES],
+                'Importance Score': [0.185, 0.172, 0.158, 0.156, 0.155, 0.154]
+            }).sort_values('Importance Score', ascending=True)
             
             fig = px.bar(importance_df,
-                         x='重要性评分',
-                         y='特征中文',
+                         x='Importance Score',
+                         y='Feature Name',
                          orientation='h',
-                         title="特征重要性排序",
-                         color='重要性评分',
+                         title="Feature Importance Ranking",
+                         color='Importance Score',
                          color_continuous_scale='Reds')
             fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
             
             st.markdown("""
-            **特征重要性说明**:
-            - **L4矢状面**是最重要的预测指标
-            - **L4横断面**次之
-            - L4椎体（承重最大的椎体）的3个维度（矢状面、横断面、冠状面）都很重要
-            - 所有特征均与骨质疏松风险**负相关** (CT值越低，风险越高)
+            **Feature Importance Interpretation**:
+            - **L4 Sagittal** is the most important predictor
+            - **L4 Axial** ranks second
+            - All three dimensions (Sagittal, Axial, Coronal) of L4 vertebra are important
+            - All features show **negative correlation** with osteoporosis risk (lower CT → higher risk)
             """)
         
         with tab2:
-            st.subheader("特征解剖位置与功能")
+            st.subheader("Anatomical Distribution of Features")
             
-            # 特征分组显示
             feature_groups = {
-                'L1椎体': ['L1hengduan'],
-                'L3椎体': ['L3guanzhuang', 'L3mean'],
-                'L4椎体': ['L4shizhuang', 'L4hengduan', 'L4guanzhuang']
+                'L1 Vertebra': ['L1_Axial'],
+                'L3 Vertebra': ['L3_Coronal', 'L3_Mean'],
+                'L4 Vertebra': ['L4_Sagittal', 'L4_Axial', 'L4_Coronal']
             }
             
             for group, features in feature_groups.items():
@@ -455,115 +518,111 @@ def main():
                 group_data = []
                 for feat in features:
                     group_data.append({
-                        '特征': feat,
-                        '特征中文': FEATURE_NAMES_CN.get(feat, feat),
-                        '描述': FEATURE_DESCRIPTIONS.get(feat, ''),
-                        '正常范围(HU)': f"{REFERENCE_RANGES[feat][0]}-{REFERENCE_RANGES[feat][1]}"
+                        'Feature': FEATURE_NAMES_DISPLAY.get(feat, feat),
+                        'Description': FEATURE_DESCRIPTIONS.get(feat, ''),
+                        'Normal Range (HU)': f"{REFERENCE_RANGES[feat][0]}-{REFERENCE_RANGES[feat][1]}"
                     })
                 st.dataframe(pd.DataFrame(group_data), use_container_width=True, hide_index=True)
                 st.markdown("---")
+            
+            st.markdown("""
+            ### 🎯 Lumbar Anatomy and CT Interpretation
+            
+            | Vertebra | Included Features | Clinical Significance |
+            |----------|------------------|----------------------|
+            | **L1** | Axial | Upper lumbar representative, sensitive to early bone loss |
+            | **L3** | Coronal, Mean | Mid-lumbar, comprehensive indicator of bone density |
+            | **L4** | Sagittal, Axial, Coronal | Lower lumbar, bears maximum load, most important region |
+            """)
         
         with tab3:
-            st.subheader("6个核心CT特征详细说明")
+            st.subheader("Detailed Feature Descriptions")
             
             feature_table = []
             for feat in SELECTED_FEATURES:
                 feature_table.append({
-                    '特征代码': feat,
-                    '特征中文': FEATURE_NAMES_CN.get(feat, feat),
-                    '描述': FEATURE_DESCRIPTIONS.get(feat, ''),
-                    '正常范围(HU)': f"{REFERENCE_RANGES[feat][0]}-{REFERENCE_RANGES[feat][1]}",
-                    '与骨质疏松关系': '负相关 (CT值↓ → 风险↑)'
+                    'Feature Code': feat,
+                    'Feature Name': FEATURE_NAMES_DISPLAY.get(feat, feat),
+                    'Description': FEATURE_DESCRIPTIONS.get(feat, ''),
+                    'Normal Range (HU)': f"{REFERENCE_RANGES[feat][0]}-{REFERENCE_RANGES[feat][1]}",
+                    'Correlation with Risk': 'Negative (CT↓ → Risk↑)'
                 })
             
             st.dataframe(pd.DataFrame(feature_table), use_container_width=True, hide_index=True)
             
             st.markdown("""
-            ### 🎯 腰椎解剖与CT值解读
+            ### 📊 Model Performance Details (3-class)
             
-            | 椎体 | 包含特征 | 临床意义 |
-            |------|---------|---------|
-            | **L1** | 横断面 | 上腰椎代表，对早期骨质流失敏感 |
-            | **L3** | 冠状面、均值 | 腰椎中部，综合反映整体骨密度 |
-            | **L4** | 矢状面、横断面、冠状面 | 下腰椎，承重最大，是最重要的预测区域 |
-            
-            ### 📊 模型性能详情
-            
-            | 指标 | 数值 |
-            |------|------|
-            | 准确率 (Accuracy) | 74.29% |
-            | 宏平均F1 (Macro F1) | 0.7578 |
-            | 加权F1 (Weighted F1) | 0.7562 |
-            | Normal F1 | 0.6538 |
-            | Osteopenia F1 | 0.8889 |
-            | Osteoporosis F1 | 0.7308 |
+            | Metric | Value |
+            |--------|-------|
+            | Accuracy | 74.29% |
+            | Macro F1 Score | 0.7578 |
+            | Weighted F1 Score | 0.7562 |
+            | Normal F1 Score | 0.6538 |
+            | Osteopenia F1 Score | 0.8889 |
+            | Osteoporosis F1 Score | 0.7308 |
             """)
     
-    # ====================== 使用说明页面 ======================
+    # ====================== User Guide Page ======================
     else:
-        st.header("ℹ️ 使用说明")
+        st.header("ℹ️ User Guide")
         
         st.markdown("""
-        ## 📖 系统使用指南
+        ## 📖 System User Guide
         
-        ### 1. 系统概述
-        本系统基于**SVM机器学习模型（RBF核）**，使用**6个核心腰椎CT特征**进行骨质疏松风险预测。
-        模型经过超参数优化，在验证集上达到了最佳性能。
+        ### 1. System Overview
+        This system is based on an **SVM machine learning model (RBF kernel)** using **6 core lumbar CT features** for **3-class classification** of bone density status.
         
-        ### 2. 模型性能
-        | 指标 | 数值 |
-        |------|------|
-        | 验证集准确率 | 74.29% |
-        | 宏平均F1 (Macro F1) | 0.7578 |
-        | 加权F1 (Weighted F1) | 0.7562 |
-        | Normal类F1 | 0.6538 |
-        | Osteopenia类F1 | 0.8889 |
-        | Osteoporosis类F1 | 0.7308 |
+        ### 2. Model Performance
+        | Metric | Value |
+        |--------|-------|
+        | Validation Accuracy | 74.29% |
+        | Macro F1 Score | 0.7578 |
+        | Weighted F1 Score | 0.7562 |
+        | Normal Class F1 | 0.6538 |
+        | Osteopenia Class F1 | 0.8889 |
+        | Osteoporosis Class F1 | 0.7308 |
         
-        ### 3. 6个核心CT特征
-        | 特征 | 说明 |
-        |------|------|
-        | L4矢状面 (L4shizhuang) | **最重要的预测指标**，L4椎体承重最大 |
-        | L4横断面 (L4hengduan) | L4椎体横断面CT值 |
-        | L1横断面 (L1hengduan) | L1椎体横断面CT值，上腰椎代表 |
-        | L3冠状面 (L3guanzhuang) | L3椎体冠状面CT值 |
-        | L3均值 (L3mean) | L3平均CT值 |
-        | L4冠状面 (L4guanzhuang) | L4椎体冠状面CT值 |
+        ### 3. Six Core CT Features
         
-        ### 4. CT值参考范围
-        | 分类 | CT值 (HU) | 临床意义 |
-        |------|-----------|---------|
-        | 正常 | >160 | 骨密度正常 |
-        | 骨量减少 | 120-160 | 需关注 |
-        | 骨质疏松 | <120 | 建议DXA确诊 |
+        | Feature | Description |
+        |---------|-------------|
+        | L4 Sagittal | **Most important predictor**, L4 vertebra bears maximum load |
+        | L4 Axial | L4 axial CT value |
+        | L1 Axial | L1 axial CT value, upper lumbar representative |
+        | L3 Coronal | L3 coronal CT value |
+        | L3 Mean | L3 mean CT value |
+        | L4 Coronal | L4 coronal CT value |
         
-        ### 5. 结果解读
+        ### 4. CT Value Reference Ranges
         
-        #### 风险等级
-        - 🟢 **低风险 (<30%)**: CT值正常范围
-        - 🟡 **中风险 (30%-70%)**: 需要进一步评估
-        - 🔴 **高风险 (>70%)**: 建议DXA检查确诊
+        | Classification | CT Value (HU) | Clinical Significance |
+        |----------------|---------------|----------------------|
+        | Normal | >160 | Normal bone density |
+        | Osteopenia | 120-160 | Reduced bone density, requires attention |
+        | Osteoporosis | <120 | DXA confirmation recommended |
         
-        #### 各F1分数说明
-        - **Normal F1 (0.6538)**: 正常骨密度识别能力
-        - **Osteopenia F1 (0.8889)**: 骨量减少识别能力（最佳）
-        - **Osteoporosis F1 (0.7308)**: 骨质疏松识别能力
+        ### 5. Result Interpretation
         
-        ### 6. 使用方法
-        1. 进入"🔍 骨质疏松预测"页面
-        2. 输入6个核心CT值（单位为HU）
-        3. 点击"开始预测"按钮
-        4. 查看预测结果和临床建议
+        #### Clinical Categories
+        - ✅ **Normal**: Routine follow-up every 2-3 years
+        - ⚠️ **Osteopenia**: Lifestyle intervention, repeat DXA in 1 year
+        - 🔴 **Osteoporosis**: Medical consultation, DXA confirmation, consider treatment
         
-        ### 7. 重要声明
-        ⚠️ **本系统为机会性筛查工具，不能替代DXA金标准诊断**
-        预测结果仅供参考，最终诊断请咨询专业医生。
-        """)
-    
-    # 页脚
-    st.markdown("---")
-    st.caption("🦴 骨质疏松机会性筛查系统 | 基于SVM机器学习 | 模型版本: Optimized v1.0 | 仅供参考，请遵医嘱")
-
-
-if __name__ == "__main__":
-    main()
+        #### Class-Specific F1 Scores
+        - **Normal (0.6538)**: Identification ability for normal bone density
+        - **Osteopenia (0.8889)**: Excellent identification for osteopenia
+        - **Osteoporosis (0.7308)**: Good identification for osteoporosis
+        
+        ### 6. How to Use
+        1. Navigate to "🔍 Risk Prediction" page
+        2. Enter the 6 core CT values (in HU)
+        3. Click "Run Prediction" button
+        4. Review prediction results and clinical recommendations
+        
+        ### 7. Important Disclaimer
+        ⚠️ **This system is an opportunistic screening tool and cannot replace DXA gold standard diagnosis**
+        Prediction results are for reference only. Final diagnosis should be made by qualified physicians.
+        
+        ### 8. Citation
+        If you use this system in your research, please cite:
