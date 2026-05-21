@@ -626,3 +626,13 @@ def main():
         
         ### 8. Citation
         If you use this system in your research, please cite:
+        SVM-based opportunistic screening system for osteoporosis using lumbar spine CT values.
+        """)
+    
+    # Footer
+    st.markdown("---")
+    st.caption("🦴 Osteoporosis Screening System | SVM Machine Learning | Version: Optimized v2.0 (3-class) | For Research Use Only")
+
+
+if __name__ == "__main__":
+    main()
